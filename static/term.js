@@ -41,10 +41,11 @@ var window = this
  * EventEmitter
  */
 
-function EventEmitter() {}
+function EventEmitter() {
+  this._events = {};
+}
 
 EventEmitter.prototype.addListener = function(type, listener) {
-  this._events = this._events || {};
   this._events[type] = this._events[type] || [];
   this._events[type].push(listener);
 };
@@ -52,13 +53,13 @@ EventEmitter.prototype.addListener = function(type, listener) {
 EventEmitter.prototype.on = EventEmitter.prototype.addListener;
 
 EventEmitter.prototype.removeListener = function(type, listener) {
-  if (!this._events || !this._events[type]) return;
+  if (!this._events[type]) return;
 
   var obj = this._events[type]
     , i = obj.length;
 
   while (i--) {
-    if (obj[i] === listener) {
+    if (obj[i] === listener || obj[i].listener === listener) {
       obj.splice(i, 1);
       return;
     }
@@ -67,16 +68,22 @@ EventEmitter.prototype.removeListener = function(type, listener) {
 
 EventEmitter.prototype.off = EventEmitter.prototype.removeListener;
 
+EventEmitter.prototype.removeAllListeners = function(type) {
+  if (this._events[type]) delete this._events[type];
+};
+
 EventEmitter.prototype.once = function(type, listener) {
-  this.on(type, function on() {
+  function on() {
     var args = Array.prototype.slice.call(arguments);
     this.removeListener(type, on);
     return listener.apply(this, args);
-  });
+  }
+  on.listener = listener;
+  return this.on(type, on);
 };
 
 EventEmitter.prototype.emit = function(type) {
-  if (!this._events || !this._events[type]) return;
+  if (!this._events[type]) return;
 
   var args = Array.prototype.slice.call(arguments, 1)
     , obj = this._events[type]
@@ -86,6 +93,10 @@ EventEmitter.prototype.emit = function(type) {
   for (; i < l; i++) {
     obj[i].apply(this, args);
   }
+};
+
+EventEmitter.prototype.listeners = function(type) {
+  return this._events[type] = this._events[type] || [];
 };
 
 /**
@@ -105,11 +116,23 @@ var normal = 0
  */
 
 function Terminal(cols, rows, handler) {
+  EventEmitter.call(this);
+
+  var options;
+  if (typeof cols === 'object') {
+    options = cols;
+    cols = options.cols;
+    rows = options.rows;
+    handler = options.handler;
+  }
+  this._options = options || {};
+
   this.cols = cols || Terminal.geometry[0];
   this.rows = rows || Terminal.geometry[1];
 
-  //if (handler) this.handler = handler;
-  if (handler) this.on('data', handler);
+  if (handler) {
+    this.on('data', handler);
+  }
 
   this.ybase = 0;
   this.ydisp = 0;
@@ -128,8 +151,13 @@ function Terminal(cols, rows, handler) {
   this.originMode = false;
   this.insertMode = false;
   this.wraparoundMode = false;
-  this.charset = null;
   this.normal = null;
+
+  // charset
+  this.charset = null;
+  this.gcharset = null;
+  this.glevel = 0;
+  this.charsets = [null];
 
   // mouse properties
   this.decLocator;
@@ -249,7 +277,7 @@ Terminal.colors[257] = Terminal.defaultColors.fg;
  */
 
 Terminal.termName = 'xterm';
-Terminal.geometry = [80, 30];
+Terminal.geometry = [80, 24];
 Terminal.cursorBlink = true;
 Terminal.visualBell = false;
 Terminal.popOnBell = false;
@@ -970,6 +998,7 @@ Terminal.prototype.scrollDisp = function(disp) {
 Terminal.prototype.write = function(data) {
   var l = data.length
     , i = 0
+    , cs
     , ch;
 
   this.refreshStart = this.y;
@@ -1028,12 +1057,14 @@ Terminal.prototype.write = function(data) {
             break;
 
           // shift out
-          // case '\x0e':
-          //   break;
+          case '\x0e':
+            this.setgLevel(1);
+            break;
 
           // shift in
-          // case '\x0f':
-          //   break;
+          case '\x0f':
+            this.setgLevel(0);
+            break;
 
           // '\e'
           case '\x1b':
@@ -1116,7 +1147,9 @@ Terminal.prototype.write = function(data) {
           // ESC % Select default/utf-8 character set.
           // @ = default, G = utf-8
           case '%':
-            this.charset = null;
+            //this.charset = null;
+            this.setgLevel(0);
+            this.setgCharset(0, Terminal.charsets.US);
             this.state = normal;
             i++;
             break;
@@ -1128,6 +1161,26 @@ Terminal.prototype.write = function(data) {
           case '+':
           case '-':
           case '.':
+            switch (ch) {
+              case '(':
+                this.gcharset = 0;
+                break;
+              case ')':
+                this.gcharset = 1;
+                break;
+              case '*':
+                this.gcharset = 2;
+                break;
+              case '+':
+                this.gcharset = 3;
+                break;
+              case '-':
+                this.gcharset = 1;
+                break;
+              case '.':
+                this.gcharset = 2;
+                break;
+            }
             this.state = charset;
             break;
 
@@ -1135,9 +1188,45 @@ Terminal.prototype.write = function(data) {
           // A = ISO Latin-1 Supplemental.
           // Not implemented.
           case '/':
-            this.charset = null;
-            this.state = normal;
-            i++;
+            this.gcharset = 3;
+            this.state = charset;
+            i--;
+            break;
+
+          // ESC N
+          // Single Shift Select of G2 Character Set
+          // ( SS2 is 0x8e). This affects next character only.
+          case 'N':
+            break;
+          // ESC O
+          // Single Shift Select of G3 Character Set
+          // ( SS3 is 0x8f). This affects next character only.
+          case 'O':
+            break;
+          // ESC n
+          // Invoke the G2 Character Set as GL (LS2).
+          case 'n':
+            this.setgLevel(2);
+            break;
+          // ESC o
+          // Invoke the G3 Character Set as GL (LS3).
+          case 'o':
+            this.setgLevel(3);
+            break;
+          // ESC |
+          // Invoke the G3 Character Set as GR (LS3R).
+          case '|':
+            this.setgLevel(3);
+            break;
+          // ESC }
+          // Invoke the G2 Character Set as GR (LS2R).
+          case '}':
+            this.setgLevel(2);
+            break;
+          // ESC ~
+          // Invoke the G1 Character Set as GR (LS1R).
+          case '~':
+            this.setgLevel(1);
             break;
 
           // ESC 7 Save Cursor (DECSC).
@@ -1186,16 +1275,58 @@ Terminal.prototype.write = function(data) {
 
       case charset:
         switch (ch) {
-          // DEC Special Character and Line Drawing Set.
-          case '0':
-            this.charset = SCLD;
+          case '0': // DEC Special Character and Line Drawing Set.
+            cs = Terminal.charsets.SCLD;
             break;
-          // United States (USASCII).
-          case 'B':
-          default:
-            this.charset = null;
+          case 'A': // UK
+            cs = Terminal.charsets.UK;
+            break;
+          case 'B': // United States (USASCII).
+            cs = Terminal.charsets.US;
+            break;
+          case '4': // Dutch
+            cs = Terminal.charsets.Dutch;
+            break;
+          case 'C': // Finnish
+          case '5':
+            cs = Terminal.charsets.Finnish;
+            break;
+          case 'R': // French
+            cs = Terminal.charsets.French;
+            break;
+          case 'Q': // FrenchCanadian
+            cs = Terminal.charsets.FrenchCanadian;
+            break;
+          case 'K': // German
+            cs = Terminal.charsets.German;
+            break;
+          case 'Y': // Italian
+            cs = Terminal.charsets.Italian;
+            break;
+          case 'E': // NorwegianDanish
+          case '6':
+            cs = Terminal.charsets.NorwegianDanish;
+            break;
+          case 'Z': // Spanish
+            cs = Terminal.charsets.Spanish;
+            break;
+          case 'H': // Swedish
+          case '7':
+            cs = Terminal.charsets.Swedish;
+            break;
+          case '=': // Swiss
+            cs = Terminal.charsets.Swiss;
+            break;
+          case '/': // ISOLatin (actually /A)
+            cs = Terminal.charsets.ISOLatin;
+            i++;
+            break;
+          default: // Default
+            cs = Terminal.charsets.US;
             break;
         }
+        this.setgCharset(this.gcharset, cs);
+        this.gcharset = null;
         this.state = normal;
         break;
 
@@ -2040,6 +2171,18 @@ Terminal.prototype.keyDown = function(ev) {
   }
 
   return true;
+};
+
+Terminal.prototype.setgLevel = function(g) {
+  this.glevel = g;
+  this.charset = this.charsets[g];
+};
+
+Terminal.prototype.setgCharset = function(g, charset) {
+  this.charsets[g] = charset;
+  if (this.glevel === g) {
+    this.charset = charset;
+  }
 };
 
 Terminal.prototype.keyPress = function(ev) {
@@ -3048,6 +3191,13 @@ Terminal.prototype.setMode = function(params) {
       case 1:
         this.applicationKeypad = true;
         break;
+      case 2:
+        this.setgCharset(0, Terminal.charsets.US);
+        this.setgCharset(1, Terminal.charsets.US);
+        this.setgCharset(2, Terminal.charsets.US);
+        this.setgCharset(3, Terminal.charsets.US);
+        // set VT100 mode here
+        break;
       case 3: // 132 col mode
         this.savedCols = this.cols;
         this.resize(132, this.rows);
@@ -3119,6 +3269,10 @@ Terminal.prototype.setMode = function(params) {
             scrollTop: this.scrollTop,
             scrollBottom: this.scrollBottom,
             tabs: this.tabs
+            // XXX save charset(s) here?
+            // charset: this.charset,
+            // glevel: this.glevel,
+            // charsets: this.charsets
           };
           this.reset();
           this.normal = normal;
@@ -3492,6 +3646,8 @@ Terminal.prototype.softReset = function(params) {
   this.curAttr = this.defAttr;
   this.x = this.y = 0; // ?
   this.charset = null;
+  this.glevel = 0; // ??
+  this.charsets = [null]; // ??
 };
 
 // CSI Ps$ p
@@ -3925,6 +4081,8 @@ Terminal.prototype.deleteColumns = function() {
  * Character Sets
  */
 
+Terminal.charsets = {};
+
 // DEC Special Character and Line Drawing Set.
 // http://vt100.net/docs/vt102-ug/table5-13.html
 // A lot of curses apps use this if they see TERM=xterm.
@@ -3933,7 +4091,7 @@ Terminal.prototype.deleteColumns = function() {
 // reference above. xterm seems in line with the reference
 // when running vttest however.
 // The table below now uses xterm's output from vttest.
-var SCLD = {
+Terminal.charsets.SCLD = { // (0
   '`': '\u25c6', // '◆'
   'a': '\u2592', // '▒'
   'b': '\u0009', // '\t'
@@ -3966,6 +4124,20 @@ var SCLD = {
   '}': '\u00a3', // '£'
   '~': '\u00b7'  // '·'
 };
+
+Terminal.charsets.UK = null; // (A
+Terminal.charsets.US = null; // (B (USASCII)
+Terminal.charsets.Dutch = null; // (4
+Terminal.charsets.Finnish = null; // (C or (5
+Terminal.charsets.French = null; // (R
+Terminal.charsets.FrenchCanadian = null; // (Q
+Terminal.charsets.German = null; // (K
+Terminal.charsets.Italian = null; // (Y
+Terminal.charsets.NorwegianDanish = null; // (E or (6
+Terminal.charsets.Spanish = null; // (Z
+Terminal.charsets.Swedish = null; // (H or (7
+Terminal.charsets.Swiss = null; // (=
+Terminal.charsets.ISOLatin = null; // /A
 
 /**
  * Helpers

@@ -24,11 +24,34 @@ Bellard's vt100 for [jslinux](http://bellard.org/jslinux/).
 - Ability to efficiently render programs: vim, mc, irssi, vifm, etc.
 - Support for xterm mouse events
 - 256 color support
+- Persistent sessions
 
 ## Install
 
 ``` bash
 $ npm install tty.js
+```
+
+## Usage
+
+tty.js is an app, but it's also possible to hook into it programatically.
+
+``` js
+var tty = require('tty.js');
+
+var app = tty.createServer({
+  shell: 'bash',
+  users: {
+    foo: 'bar'
+  },
+  port: 8000
+});
+
+app.get('/foo', function(req, res, next) {
+  res.send('bar');
+});
+
+app.listen();
 ```
 
 ## Configuration
@@ -52,11 +75,15 @@ JSON file. An example configuration file looks like:
   "static": "./static",
   "limitGlobal": 10000,
   "limitPerUser": 1000,
-  "hooks": "./hooks.js",
+  "localOnly": false,
   "cwd": ".",
+  "syncSession": false,
+  "sessionTimeout": 600000,
+  "log": true,
+  "debug": false,
   "term": {
     "termName": "xterm",
-    "geometry": [80, 30],
+    "geometry": [80, 24],
     "scrollback": 1000,
     "visualBell": false,
     "popOnBell": false,
@@ -90,19 +117,6 @@ Usernames and passwords can be plaintext or sha1 hashes.
 
 If tty.js fails to check your terminfo properly, you can force your `TERM`
 to `xterm-256color` by setting `"termName": "xterm-256color"` in your config.
-
-### Example Hooks File
-
-``` js
-var db = require('./db');
-
-module.exports = {
-  auth: function(user, pass, next) {
-    // Do database auth
-    next(null, pass === password);
-  }
-};
-```
 
 ## Security
 

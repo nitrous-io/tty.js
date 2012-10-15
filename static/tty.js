@@ -80,15 +80,12 @@ tty.open = function() {
 
   if (lights) {
     on(lights, 'click', function() {
-      root.className = !root.className
-        ? 'dark'
-        : '';
+      tty.toggleLights();
     });
   }
 
   tty.socket.on('connect', function() {
     tty.reset();
-    new Window;
     tty.emit('connect');
   });
 
@@ -100,6 +97,34 @@ tty.open = function() {
   tty.socket.on('kill', function(id) {
     if (!tty.terms[id]) return;
     tty.terms[id]._destroy();
+  });
+
+  // XXX Clean this up.
+  tty.socket.on('sync', function(terms) {
+    console.log('Attempting to sync...');
+    console.log(terms);
+
+    tty.reset();
+
+    var emit = tty.socket.emit;
+    tty.socket.emit = function() {};
+
+    Object.keys(terms).forEach(function(key) {
+      var data = terms[key]
+        , win = new Window
+        , tab = win.tabs[0];
+
+      delete tty.terms[tab.id];
+      tab.pty = data.pty;
+      tab.id = data.id;
+      tty.terms[data.id] = tab;
+      win.resize(data.cols, data.rows);
+      tab.setProcessName(data.process);
+      tty.emit('open tab', tab);
+      tab.emit('open');
+    });
+
+    tty.socket.emit = emit;
   });
 
   // We would need to poll the os on the serverside
@@ -116,7 +141,7 @@ tty.open = function() {
   }, 2 * 1000);
 
   // Keep windows maximized.
-  on(window, 'resize', function(ev) {
+  on(window, 'resize', function() {
     var i = tty.windows.length
       , win;
 
@@ -150,11 +175,23 @@ tty.reset = function() {
 };
 
 /**
+ * Lights
+ */
+
+tty.toggleLights = function() {
+  root.className = !root.className
+    ? 'dark'
+    : '';
+};
+
+/**
  * Window
  */
 
 function Window(socket) {
   var self = this;
+
+  EventEmitter.call(this);
 
   var el
     , grip
@@ -255,11 +292,14 @@ Window.prototype.bind = function() {
 };
 
 Window.prototype.focus = function() {
+  // Restack
   var parent = this.element.parentNode;
   if (parent) {
     parent.removeChild(this.element);
     parent.appendChild(this.element);
   }
+
+  // Focus Foreground Tab
   this.focused.focus();
 
   tty.emit('focus window', this);
@@ -309,7 +349,7 @@ Window.prototype.drag = function(ev) {
       (drag.top + ev.pageY - drag.pageY) + 'px';
   }
 
-  function up(ev) {
+  function up() {
     el.style.opacity = '';
     el.style.cursor = '';
     root.style.cursor = '';
@@ -317,8 +357,13 @@ Window.prototype.drag = function(ev) {
     off(document, 'mousemove', move);
     off(document, 'mouseup', up);
 
-    tty.emit('drag window', self, el.style.left, el.style.top);
-    self.emit('drag', el.style.left, el.style.top);
+    var ev = {
+      left: el.style.left.replace(/\w+/g, ''),
+      top: el.style.top.replace(/\w+/g, '')
+    };
+
+    tty.emit('drag window', self, ev);
+    self.emit('drag', ev);
   }
 
   on(document, 'mousemove', move);
@@ -352,7 +397,7 @@ Window.prototype.resizing = function(ev) {
     el.style.height = y + 'px';
   }
 
-  function up(ev) {
+  function up() {
     var x, y;
 
     x = el.clientWidth / resize.w;
@@ -441,9 +486,11 @@ Window.prototype.maximize = function() {
 Window.prototype.resize = function(cols, rows) {
   this.cols = cols;
   this.rows = rows;
+
   this.each(function(term) {
     term.resize(cols, rows);
   });
+
   tty.emit('resize window', this, cols, rows);
   this.emit('resize', cols, rows);
 };
@@ -461,10 +508,12 @@ Window.prototype.createTab = function() {
 
 Window.prototype.highlight = function() {
   var self = this;
+
   this.element.style.borderColor = 'orange';
   setTimeout(function() {
     self.element.style.borderColor = '';
   }, 200);
+
   this.focus();
 };
 
@@ -502,7 +551,6 @@ function Tab(win, socket) {
   var cols = win.cols
     , rows = win.rows;
 
-  // TODO: make this an EventEmitter
   Terminal.call(this, cols, rows);
 
   var button = document.createElement('div');
@@ -681,6 +729,7 @@ Tab.prototype.hookKeys = function() {
     // Alt-` to quickly swap between windows.
     if (key === '\x1b`') {
       var i = indexOf(tty.windows, this.window) + 1;
+
       this._ignoreNext();
       if (tty.windows[i]) return tty.windows[i].highlight();
       if (tty.windows[0]) return tty.windows[0].highlight();
@@ -740,13 +789,29 @@ Tab.prototype._ignoreNext = function() {
   this.handler = function() {
     this.handler = handler;
   };
+  var showCursor = this.showCursor;
+  this.showCursor = function() {
+    this.showCursor = showCursor;
+  };
 };
 
 /**
  * Program-specific Features
  */
 
+Tab.scrollable = {
+  irssi: true,
+  man: true,
+  less: true,
+  htop: true,
+  top: true,
+  w3m: true,
+  lynx: true,
+  mocp: true
+};
+
 Tab.prototype._bindMouse = Tab.prototype.bindMouse;
+
 Tab.prototype.bindMouse = function() {
   if (!Terminal.programFeatures) return this._bindMouse();
 
@@ -756,19 +821,9 @@ Tab.prototype.bindMouse = function() {
     ? 'mousewheel'
     : 'DOMMouseScroll';
 
-  var programs = {
-    irssi: true,
-    man: true,
-    less: true,
-    htop: true,
-    top: true,
-    w3m: true,
-    lynx: true
-  };
-
   on(self.element, wheelEvent, function(ev) {
     if (self.mouseEvents) return;
-    if (!programs[self.process]) return;
+    if (!Tab.scrollable[self.process]) return;
 
     if ((ev.type === 'mousewheel' && ev.wheelDeltaY > 0)
         || (ev.type === 'DOMMouseScroll' && ev.detail < 0)) {
@@ -788,15 +843,22 @@ Tab.prototype.bindMouse = function() {
 Tab.prototype.pollProcessName = function(func) {
   var self = this;
   this.socket.emit('process', this.id, function(err, name) {
-    if (!err) self.setProcessName(name);
-    if (func) func(err, name);
+    if (err) return func && func(err);
+    self.setProcessName(name);
+    return func && func(null, name);
   });
 };
 
 Tab.prototype.setProcessName = function(name) {
   name = sanitize(name);
+
+  if (this.process !== name) {
+    this.emit('process', name);
+  }
+
   this.process = name;
   this.button.title = name;
+
   if (this.window.focused === this) {
     // if (this.title) {
     //   name += ' (' + this.title + ')';
