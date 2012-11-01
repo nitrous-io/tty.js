@@ -799,7 +799,8 @@ Terminal.prototype.refresh = function(start, end) {
     , bgColor
     , flags
     , row
-    , parent;
+    , parent
+    , focused = Terminal.focus === this;
 
   if (end - start >= this.rows / 2) {
     parent = this.element.parentNode;
@@ -842,9 +843,15 @@ Terminal.prototype.refresh = function(start, end) {
         }
         if (data !== this.defAttr) {
           out += '<span style="';
+
           if (data === -1) {
-            bgColor = (data2 >> 9) & 0x1ff;
-            fgColor = data2 & 0x1ff;
+            if (focused) {
+              bgColor = (data2 >> 9) & 0x1ff;
+              fgColor = data2 & 0x1ff;
+            } else {
+              bgColor = data2 & 0x1ff;
+              fgColor = (data2 >> 9) & 0x1ff;
+            }
             flags = data2 >> 18;
           } else {
             bgColor = data & 0x1ff;
@@ -872,6 +879,12 @@ Terminal.prototype.refresh = function(start, end) {
 
           if (fgColor !== 257) {
             out += 'color:'
+              + Terminal.colors[fgColor]
+              + ';';
+          }
+
+          if (!focused) {
+            out += 'outline:1px solid '
               + Terminal.colors[fgColor]
               + ';';
           }
@@ -913,19 +926,22 @@ Terminal.prototype.refresh = function(start, end) {
 };
 
 Terminal.prototype.cursorBlink = function() {
-  if (Terminal.focus !== this) return;
-  this.cursorState ^= 1;
+  if (Terminal.focus !== this) {
+    this.cursorState = 1;
+  } else {
+    this.cursorState ^= 1;
+  }
   this.refresh(this.y, this.y);
 };
 
 Terminal.prototype.showCursor = function() {
   if (!this.cursorState) {
     this.cursorState = 1;
-    this.refresh(this.y, this.y);
   } else {
     // Temporarily disabled:
     // this.refreshBlink();
   }
+  this.refresh(this.y, this.y);
 };
 
 Terminal.prototype.startBlink = function() {
