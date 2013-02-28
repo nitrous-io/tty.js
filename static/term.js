@@ -1,19 +1,34 @@
 /**
  * tty.js - an xterm emulator
- * Christopher Jeffrey (https://github.com/chjj/tty.js)
+ *
+ * Copyright (c) 2012-2013, Christopher Jeffrey (https://github.com/chjj/tty.js)
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
  *
  * Originally forked from (with the author's permission):
- *
- * Fabrice Bellard's javascript vt100 for jslinux:
- * http://bellard.org/jslinux/
- * Copyright (c) 2011 Fabrice Bellard
- * (Redistribution or commercial use is prohibited
- *  without the author's permission.)
- *
- * The original design remains. The terminal itself
- * has been extended to include xterm CSI codes, among
- * other features.
-*/
+ *   Fabrice Bellard's javascript vt100 for jslinux:
+ *   http://bellard.org/jslinux/
+ *   Copyright (c) 2011 Fabrice Bellard
+ *   The original design remains. The terminal itself
+ *   has been extended to include xterm CSI codes, among
+ *   other features.
+ */
 
 ;(function() {
 
@@ -42,7 +57,7 @@ var window = this
  */
 
 function EventEmitter() {
-  this._events = {};
+  this._events = this._events || {};
 }
 
 EventEmitter.prototype.addListener = function(type, listener) {
@@ -148,6 +163,7 @@ function Terminal(cols, rows, handler) {
 
   // modes
   this.applicationKeypad = false;
+  this.applicationCursor = false;
   this.originMode = false;
   this.insertMode = false;
   this.wraparoundMode = false;
@@ -813,6 +829,10 @@ Terminal.prototype.refresh = function(start, end) {
 
   width = this.cols;
   y = start;
+
+  // if (end > this.lines.length) {
+  //   end = this.lines.length;
+  // }
 
   for (; y <= end; y++) {
     row = y + this.ydisp;
@@ -2015,7 +2035,7 @@ Terminal.prototype.keyDown = function(ev) {
       break;
     // left-arrow
     case 37:
-      if (this.applicationKeypad) {
+      if (this.applicationCursor) {
         key = '\x1bOD'; // SS3 as ^[O for 7-bit
         //key = '\x8fD'; // SS3 as 0x8f for 8-bit
         break;
@@ -2024,7 +2044,7 @@ Terminal.prototype.keyDown = function(ev) {
       break;
     // right-arrow
     case 39:
-      if (this.applicationKeypad) {
+      if (this.applicationCursor) {
         key = '\x1bOC';
         break;
       }
@@ -2032,7 +2052,7 @@ Terminal.prototype.keyDown = function(ev) {
       break;
     // up-arrow
     case 38:
-      if (this.applicationKeypad) {
+      if (this.applicationCursor) {
         key = '\x1bOA';
         break;
       }
@@ -2045,7 +2065,7 @@ Terminal.prototype.keyDown = function(ev) {
       break;
     // down-arrow
     case 40:
-      if (this.applicationKeypad) {
+      if (this.applicationCursor) {
         key = '\x1bOB';
         break;
       }
@@ -2350,6 +2370,12 @@ Terminal.prototype.resize = function(x, y) {
 Terminal.prototype.updateRange = function(y) {
   if (y < this.refreshStart) this.refreshStart = y;
   if (y > this.refreshEnd) this.refreshEnd = y;
+  // if (y > this.refreshEnd) {
+  //   this.refreshEnd = y;
+  //   if (y > this.rows - 1) {
+  //     this.refreshEnd = this.rows - 1;
+  //   }
+  // }
 };
 
 Terminal.prototype.maxRange = function() {
@@ -3209,7 +3235,7 @@ Terminal.prototype.setMode = function(params) {
   } else if (this.prefix === '?') {
     switch (params) {
       case 1:
-        this.applicationKeypad = true;
+        this.applicationCursor = true;
         break;
       case 2:
         this.setgCharset(0, Terminal.charsets.US);
@@ -3407,7 +3433,7 @@ Terminal.prototype.resetMode = function(params) {
   } else if (this.prefix === '?') {
     switch (params) {
       case 1:
-        this.applicationKeypad = false;
+        this.applicationCursor = false;
         break;
       case 3:
         if (this.cols === 132 && this.savedCols) {
@@ -3661,6 +3687,7 @@ Terminal.prototype.softReset = function(params) {
   this.originMode = false;
   this.wraparoundMode = false; // autowrap
   this.applicationKeypad = false; // ?
+  this.applicationCursor = false;
   this.scrollTop = 0;
   this.scrollBottom = this.rows - 1;
   this.curAttr = this.defAttr;
