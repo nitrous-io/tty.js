@@ -877,6 +877,12 @@ Terminal.prototype.refresh = function(start, end) {
               fgColor = (data2 >> 9) & 0x1ff;
             }
             flags = data2 >> 18;
+
+            if (!focused) {
+              out += 'outline:1px solid '
+                + Terminal.colors[fgColor]
+                + ';';
+            }
           } else {
             bgColor = data & 0x1ff;
             fgColor = (data >> 9) & 0x1ff;
@@ -903,12 +909,6 @@ Terminal.prototype.refresh = function(start, end) {
 
           if (fgColor !== 257) {
             out += 'color:'
-              + Terminal.colors[fgColor]
-              + ';';
-          }
-
-          if (!focused) {
-            out += 'outline:1px solid '
               + Terminal.colors[fgColor]
               + ';';
           }
