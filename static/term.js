@@ -1,7 +1,8 @@
 /**
- * tty.js - an xterm emulator
+ * term.js - an xterm emulator
  *
  * Copyright (c) 2012-2013, Christopher Jeffrey (https://github.com/chjj/tty.js)
+ * Portions Copyright (c) 2012-2013 Irrational Industries Inc. (https://www.action.io/)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -51,6 +52,8 @@
 
 var window = this
   , document = this.document;
+
+var nextTerminalId = 1;
 
 /**
  * EventEmitter
@@ -324,18 +327,20 @@ Terminal.prototype.focus = function() {
  * Global Events for key handling
  */
 
-Terminal.bindKeys = function() {
+Terminal.prototype.bindKeys = function() {
   if (Terminal.focus) return;
 
+  var self = this;
   // We could put an "if (Terminal.focus)" check
   // here, but it shouldn't be necessary.
-  on(document, 'keydown', function(ev) {
+  on(this.inputElement, 'keydown', function(ev) {
     if(Terminal.focus) {
       return Terminal.focus.keyDown(ev);
     }
   }, true);
 
-  on(document, 'keypress', function(ev) {
+
+  on(this.inputElement, 'keypress', function(ev) {
     if(Terminal.focus) {
       return Terminal.focus.keyPress(ev);
     }
@@ -361,17 +366,28 @@ Terminal.prototype.open = function() {
     this.children.push(div);
   }
 
-  document.body.appendChild(this.element);
+  this.inputElement = document.createElement('input');
+  this.inputElement.className = 'terminal-input';
+
+  this.containerElement = document.createElement('div');
+  this.containerElement.type = 'text';
+  this.containerElement.className = 'terminal-container';
+  this.containerElement.id = 'terminal_' + nextTerminalId++;
+
+  this.containerElement.appendChild(this.element);
+  this.containerElement.appendChild(this.inputElement);
+  document.body.appendChild(this.containerElement);
 
   this.refresh(0, this.rows - 1);
 
-  Terminal.bindKeys();
+  this.bindKeys();
   this.focus();
 
   this.startBlink();
 
-  on(this.element, 'mousedown', function() {
+  on(this.element, 'click', function() {
     self.focus();
+    self.inputElement.focus();
   });
 
   // This probably shouldn't work,
@@ -866,9 +882,10 @@ Terminal.prototype.refresh = function(start, end) {
           out += '</span>';
         }
         if (data !== this.defAttr) {
-          out += '<span style="';
+          out += '<span '
 
           if (data === -1) {
+            out += 'class="terminal-cursor" ';
             if (focused) {
               bgColor = (data2 >> 9) & 0x1ff;
               fgColor = data2 & 0x1ff;
@@ -888,6 +905,8 @@ Terminal.prototype.refresh = function(start, end) {
             fgColor = (data >> 9) & 0x1ff;
             flags = data >> 18;
           }
+
+          out += 'style="';
 
           if (flags & 1) {
             if (!Terminal.brokenBold) {
@@ -2168,7 +2187,7 @@ Terminal.prototype.keyDown = function(ev) {
       break;
     default:
       // a-z and space
-      if (ev.ctrlKey) {
+      if (ev.ctrlKey && !ev.altKey) {
         if (ev.keyCode >= 65 && ev.keyCode <= 90) {
           key = String.fromCharCode(ev.keyCode - 64);
         } else if (ev.keyCode === 32) {
@@ -2187,7 +2206,7 @@ Terminal.prototype.keyDown = function(ev) {
           // ^] - group sep
           key = String.fromCharCode(29);
         }
-      } else if ((!isMac && ev.altKey) || (isMac && ev.metaKey)) {
+      } else if (!ev.ctrlKey && ((!isMac && ev.altKey) || (isMac && ev.metaKey))) {
         if (ev.keyCode >= 65 && ev.keyCode <= 90) {
           key = '\x1b' + String.fromCharCode(ev.keyCode + 32);
         } else if (ev.keyCode === 192) {
@@ -2199,18 +2218,39 @@ Terminal.prototype.keyDown = function(ev) {
       break;
   }
 
-  this.emit('keydown', ev);
+  //this.emit('keydown', ev);
 
   if (key) {
-    this.emit('key', key, ev);
-
-    this.showCursor();
-    this.handler(key);
-
+    this.commitInput(key, ev);
     return cancel(ev);
+  } else {
+    this.showBufferedText();
   }
 
   return true;
+};
+
+Terminal.prototype.showBufferedText = function() {
+  var inputElement = this.inputElement;
+  window.setTimeout(function() {
+    if (inputElement.value.length > 0 && inputElement.className.indexOf(' visible') === -1) {
+      inputElement.className += ' visible';
+    }
+  }, 0);
+};
+
+Terminal.prototype.commitInput = function(key, ev) {
+  var bufferedText = this.inputElement.value;
+  if (bufferedText.length > 0) {
+    key = bufferedText + key;
+    this.inputElement.value = '';
+    this.inputElement.className = this.inputElement.className.replace(' visible', '');
+  }
+
+  this.emit('key', key, ev);
+
+  this.showCursor();
+  this.handler(key);
 };
 
 Terminal.prototype.setgLevel = function(g) {
@@ -2240,15 +2280,12 @@ Terminal.prototype.keyPress = function(ev) {
     return false;
   }
 
-  if (!key || ev.ctrlKey || ev.altKey || ev.metaKey) return false;
+  if ((key && !ev.ctrlKey) || (key && ev.altKey && ev.ctrlKey) || (key && ev.altKey) || (key && ev.altGraphKey)) {
+    key = String.fromCharCode(key);
 
-  key = String.fromCharCode(key);
-
-  this.emit('keypress', key, ev);
-  this.emit('key', key, ev);
-
-  this.showCursor();
-  this.handler(key);
+    //this.emit('keypress', key, ev);
+    this.commitInput(key, ev);
+  }
 
   return false;
 };

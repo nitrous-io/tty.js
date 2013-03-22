@@ -633,13 +633,13 @@ Tab.prototype.focus = function() {
   // maybe move to Tab.prototype.switch
   if (win.focused !== this) {
     if (win.focused) {
-      if (win.focused.element.parentNode) {
-        win.focused.element.parentNode.removeChild(win.focused.element);
+      if (win.focused.containerElement.parentNode) {
+        win.focused.containerElement.parentNode.removeChild(win.focused.containerElement);
       }
       win.focused.button.style.fontWeight = '';
     }
 
-    win.element.appendChild(this.element);
+    win.element.appendChild(this.containerElement);
     win.focused = this;
 
     win.title.innerHTML = this.process;
@@ -676,8 +676,8 @@ Tab.prototype._destroy = function() {
   var win = this.window;
 
   this.button.parentNode.removeChild(this.button);
-  if (this.element.parentNode) {
-    this.element.parentNode.removeChild(this.element);
+  if (this.containerElement.parentNode) {
+    this.containerElement.parentNode.removeChild(this.containerElement);
   }
 
   if (tty.terms[this.id]) delete tty.terms[this.id];
