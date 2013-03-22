@@ -312,6 +312,9 @@ Terminal.debug = false;
 Terminal.focus = null;
 
 Terminal.prototype.focus = function() {
+  var self = this;
+  window.setTimeout(function() { self.inputElement.focus(); }, 0);
+
   if (Terminal.focus === this) return;
   if (Terminal.focus) {
     Terminal.focus.cursorState = 0;
