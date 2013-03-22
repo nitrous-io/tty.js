@@ -885,7 +885,7 @@ Terminal.prototype.refresh = function(start, end) {
           out += '</span>';
         }
         if (data !== this.defAttr) {
-          out += '<span '
+          out += '<span ';
 
           if (data === -1) {
             out += 'class="terminal-cursor" ';
