@@ -2191,7 +2191,13 @@ Terminal.prototype.keyDown = function(ev) {
     default:
       // a-z and space
       if (ev.ctrlKey && !ev.altKey) {
-        if (ev.keyCode >= 65 && ev.keyCode <= 90) {
+        // CTRL+SHIFT+V on Chrome on non-Mac systems
+        if (!isMac && ev.shiftKey && ev.keyCode === 86) {
+          key = '';
+          window.setTimeout(function() {
+            self.commitInput('', ev);
+          }, 20);
+        } else if (ev.keyCode >= 65 && ev.keyCode <= 90) {
           key = String.fromCharCode(ev.keyCode - 64);
         } else if (ev.keyCode === 32) {
           // NUL
@@ -2210,8 +2216,8 @@ Terminal.prototype.keyDown = function(ev) {
           key = String.fromCharCode(29);
         }
       }
+      // CMD+v on Mac
       else if (isMac && ev.metaKey && ev.keyCode === 86) {
-        // handle CMD+v on Mac
         key = '';
         window.setTimeout(function() {
           self.commitInput('', ev);
