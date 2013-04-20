@@ -2,7 +2,7 @@
  * term.js - an xterm emulator
  *
  * Copyright (c) 2012-2013, Christopher Jeffrey (https://github.com/chjj/tty.js)
- * Portions Copyright (c) 2012-2013 Irrational Industries Inc. (https://www.action.io/)
+ * Portions Copyright (c) 2012-2013 Irrational Industries Inc. (https://www.nitrous.io/)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -447,19 +447,37 @@ Terminal.prototype.sizeToFit = function() {
   tempDiv.style.height = '0';
   tempDiv.style.visibility = 'hidden';
 
-  var ch = document.createElement('div');
-  ch.style.position = 'absolute';
-  ch.innerHTML = 'W';
-  tempDiv.appendChild(ch);
+  var rowDiv = document.createElement('div');
+  rowDiv.style.position = 'absolute';
+  rowDiv.innerHTML = 'W';
+  tempDiv.appendChild(rowDiv);
 
-  this.element.parentNode.insertBefore(tempDiv, this.element.nextSibling);
+  this.containerElement.insertBefore(tempDiv, this.element.nextSibling);
 
-  var cols = Math.floor(this.element.clientWidth / ch.clientWidth);
-  var rows = Math.floor(this.element.clientHeight / ch.clientHeight);
+  var viewPortWidth = this.element.clientWidth;
+  var viewPortHeight = this.element.clientHeight;
 
+  // determine number of columns
+  var cols;
+  for (cols = 1; cols < 2000; cols ++) {
+    rowDiv.innerHTML += 'W';
+    if (rowDiv.offsetWidth > viewPortWidth) {
+      break;
+    }
+  }
+  rowDiv.innerHTML = 'W';
+
+  // determine number of rows
+  var rows;
+  for (rows = 1; rows < 2000; rows ++) {
+    rowDiv.innerHTML += '<br />W';
+    if (rowDiv.offsetHeight > viewPortHeight) {
+      break;
+    }
+  }
+
+  rowDiv.parentNode.removeChild(rowDiv);
   tempDiv.parentNode.removeChild(tempDiv);
-  ch.parentNode.removeChild(ch);
-
   this.resize(cols, rows);
 }
 
