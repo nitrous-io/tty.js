@@ -553,13 +553,13 @@ Terminal.prototype.bindMouse = function() {
   // position to characters
   function encode(data, ch) {
     if (!self.utfMouse) {
-      if (ch > 255) ch = 255;
+      if (ch > 254) ch = 254;
       data.push(ch);
     } else {
       if (ch < 127) {
         data.push(ch);
       } else {
-        if (ch > 2047) ch = 2047;
+        if (ch > 2046) ch = 2046;
         data.push(0xC0 | (ch >> 6));
         data.push(0x80 | (ch & 0x3F));
       }
@@ -790,12 +790,16 @@ Terminal.prototype.bindMouse = function() {
 
     // x10 compatibility mode can't send button releases
     if (!self.x10Mouse) {
-      on(document, 'mouseup', function up(ev) {
+      var up = function (ev) {
         sendButton(ev);
-        if (self.normalMouse) off(document, 'mousemove', sendMove);
+        off(document, 'mousemove', sendMove);
         off(document, 'mouseup', up);
+        off(document, 'mousedown', up);
         return cancel(ev);
-      });
+      };
+
+      on(document, 'mouseup', up);
+      on(document, 'mousedown', up);
     }
 
     return cancel(ev);
