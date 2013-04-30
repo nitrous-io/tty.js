@@ -356,16 +356,18 @@ Terminal.prototype.bindKeys = function() {
 Terminal.prototype.open = function() {
   var self = this
     , i = 0
-    , div;
+    , line;
 
   this.element = document.createElement('div');
   this.element.className = 'terminal';
   this.children = [];
 
   for (; i < this.rows; i++) {
-    div = document.createElement('div');
-    this.element.appendChild(div);
-    this.children.push(div);
+    line = document.createElement('div');
+    line.className = 'terminal-row';
+    line.setAttribute('data-row', (i + 1).toString());
+    this.element.appendChild(line);
+    this.children.push(line);
   }
 
   this.inputElement = document.createElement('input');
@@ -714,44 +716,57 @@ Terminal.prototype.bindMouse = function() {
 
   // mouse coordinates measured in cols/rows
   function getCoords(ev) {
-    var x, y, w, h, el;
-
     // ignore browsers without pageX for now
-    if (ev.pageX == null) return;
+    if (ev.pageX == null) {
+      return;
+    }
 
-    x = ev.pageX;
-    y = ev.pageY;
-    el = self.element;
+    var x = ev.pageX;
+    var y = ev.pageY;
+    var el = ev.target;
 
-    // should probably check offsetParent
-    // but this is more portable
-    while (el !== document.documentElement) {
-      x -= el.offsetLeft;
-      y -= el.offsetTop;
+    // find terminal-row div
+    while (el.className !== 'terminal-row') {
       el = el.parentNode;
+      if (el == null) {
+        return;
+      }
+    }
+
+    var tempEl = el;
+    while (tempEl !== document.documentElement) {
+      x -= tempEl.offsetLeft;
+      y -= tempEl.offsetTop;
+      tempEl = tempEl.parentNode;
     }
 
     // convert to cols/rows
-    w = self.element.clientWidth;
-    h = self.element.clientHeight;
-    x = ((x / w) * self.cols) | 0;
-    y = ((y / h) * self.rows) | 0;
+    var col = Math.ceil((x / el.offsetWidth) * self.cols);
+    var row = window.parseInt((el.getAttribute('data-row') || 1), 10);
 
     // be sure to avoid sending
     // bad positions to the program
-    if (x < 0) x = 0;
-    if (x > self.cols) x = self.cols;
-    if (y < 0) y = 0;
-    if (y > self.rows) y = self.rows;
+    if (col < 1) {
+      col = 1;
+    }
+    if (row < 1) {
+      row = 1;
+    }
+    if (col > self.cols) {
+      col = (self.cols);
+    }
+    if (row > self.rows) {
+      row = (self.rows);
+    }
 
     // xterm sends raw bytes and
     // starts at 32 (SP) for each.
-    x += 32;
-    y += 32;
+    col += 32;
+    row += 32;
 
     return {
-      x: x,
-      y: y,
+      x: col,
+      y: row,
       down: ev.type === 'mousedown',
       up: ev.type === 'mouseup',
       wheel: ev.type === wheelEvent,
@@ -2408,6 +2423,8 @@ Terminal.prototype.resize = function(x, y) {
       }
       if (this.children.length < y) {
         line = document.createElement('div');
+        line.className = 'terminal-row';
+        line.setAttribute('data-row', j.toString());
         el.appendChild(line);
         this.children.push(line);
       }
