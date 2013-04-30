@@ -556,7 +556,7 @@ Terminal.prototype.bindMouse = function() {
       if (ch > 254) ch = 254;
       data.push(ch);
     } else {
-      if (ch < 127) {
+      if (ch < 128) {
         data.push(ch);
       } else {
         if (ch > 2046) ch = 2046;
