@@ -297,7 +297,6 @@ Terminal.colors[257] = Terminal.defaultColors.fg;
 
 Terminal.termName = 'xterm';
 Terminal.geometry = [80, 24];
-Terminal.cursorBlink = true;
 Terminal.visualBell = false;
 Terminal.popOnBell = false;
 Terminal.scrollback = 1000;
@@ -386,8 +385,6 @@ Terminal.prototype.open = function() {
 
   this.bindKeys();
   this.focus();
-
-  this.startBlink();
 
   on(this.element, 'click', function() {
     self.focus();
@@ -1003,38 +1000,15 @@ Terminal.prototype.refresh = function(start, end) {
   if (parent) parent.appendChild(this.element);
 };
 
-Terminal.prototype.cursorBlink = function() {
-  if (Terminal.focus !== this) {
-    this.cursorState = 1;
-  } else {
-    this.cursorState ^= 1;
-  }
+Terminal.prototype.redrawCursor = function() {
   this.refresh(this.y, this.y);
 };
 
 Terminal.prototype.showCursor = function() {
   if (!this.cursorState) {
     this.cursorState = 1;
-  } else {
-    // Temporarily disabled:
-    // this.refreshBlink();
   }
-  this.refresh(this.y, this.y);
-};
-
-Terminal.prototype.startBlink = function() {
-  if (!Terminal.cursorBlink) return;
-  var self = this;
-  this._blinker = function() {
-    self.cursorBlink();
-  };
-  this._blink = setInterval(this._blinker, 500);
-};
-
-Terminal.prototype.refreshBlink = function() {
-  if (!Terminal.cursorBlink) return;
-  clearInterval(this._blink);
-  this._blink = setInterval(this._blinker, 500);
+  this.redrawCursor();
 };
 
 Terminal.prototype.scroll = function() {
