@@ -342,6 +342,12 @@ Terminal.prototype.bindKeys = function() {
     }
   }, true);
 
+  on(document, 'keydown', function(ev) {
+    if(Terminal.focus) {
+      return Terminal.focus.keyDown(ev);
+    }
+  }, true);
+
   on(this.inputElement, 'keypress', function(ev) {
     if(Terminal.focus) {
       return Terminal.focus.keyPress(ev);
@@ -2224,12 +2230,17 @@ Terminal.prototype.keyDown = function(ev) {
     default:
       // a-z and space
       if (ev.ctrlKey && !ev.altKey) {
-        // CTRL+SHIFT+V on Chrome on non-Mac systems
+        // CTRL+SHIFT+V in Chrome on non-Mac systems
         if (!isMac && ev.shiftKey && ev.keyCode === 86) {
           key = '';
           window.setTimeout(function() {
             self.commitInput('', ev);
           }, 20);
+        // CTRL+SHIFT+C on Chrome on non-Mac systems
+        // requires the app to be installed as a Chrome extension.
+        } else if (!isMac && ev.shiftKey && ev.keyCode === 67) {
+          key = ''
+          document.execCommand('copy', false, null);
         } else if (ev.keyCode >= 65 && ev.keyCode <= 90) {
           key = String.fromCharCode(ev.keyCode - 64);
         } else if (ev.keyCode === 32) {
@@ -2255,8 +2266,7 @@ Terminal.prototype.keyDown = function(ev) {
         window.setTimeout(function() {
           self.commitInput('', ev);
         }, 20);
-      }
-      else if (!ev.ctrlKey && ((!isMac && ev.altKey) || (isMac && ev.metaKey))) {
+      } else if (!ev.ctrlKey && ((!isMac && ev.altKey) || (isMac && ev.metaKey))) {
         if (ev.keyCode >= 65 && ev.keyCode <= 90) {
           key = '\x1b' + String.fromCharCode(ev.keyCode + 32);
         } else if (ev.keyCode === 192) {
