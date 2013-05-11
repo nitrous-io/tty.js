@@ -412,15 +412,10 @@ Terminal.prototype.open = function() {
     }, 1);
   }, true);
 
-  on(this.element, 'paste', function(ev) {
-    if (ev.clipboardData) {
-      self.send(ev.clipboardData.getData('text/plain'));
-    } else if (window.clipboardData) {
-      self.send(window.clipboardData.getData('Text'));
-    }
-    // Not necessary. Do it anyway for good measure.
-    self.element.contentEditable = 'inherit';
-    return cancel(ev);
+  on(this.inputElement, 'paste', function(ev) {
+    window.setTimeout(function() {
+      self.commitInput('', ev);
+    }, 20);
   });
 
   this.bindMouse();
