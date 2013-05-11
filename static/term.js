@@ -171,6 +171,7 @@ function Terminal(cols, rows, handler) {
   this.insertMode = false;
   this.wraparoundMode = false;
   this.normal = null;
+  this.selectionMode = false;
 
   // charset
   this.charset = null;
@@ -312,17 +313,19 @@ Terminal.focus = null;
 
 Terminal.prototype.focus = function() {
   var self = this;
-  window.setTimeout(function() { self.inputElement.focus(); }, 0);
+  if (!self.selectionMode) {
+    window.setTimeout(function() { self.inputElement.focus(); }, 0);
 
-  if (Terminal.focus === this) return;
-  if (Terminal.focus) {
-    Terminal.focus.cursorState = 0;
-    Terminal.focus.refresh(Terminal.focus.y, Terminal.focus.y);
-    if (Terminal.focus.sendFocus) Terminal.focus.send('\x1b[O');
+    if (Terminal.focus === this) return;
+    if (Terminal.focus) {
+      Terminal.focus.cursorState = 0;
+      Terminal.focus.refresh(Terminal.focus.y, Terminal.focus.y);
+      if (Terminal.focus.sendFocus) Terminal.focus.send('\x1b[O');
+    }
+    Terminal.focus = this;
+    if (this.sendFocus) this.send('\x1b[I');
+    this.showCursor();
   }
-  Terminal.focus = this;
-  if (this.sendFocus) this.send('\x1b[I');
-  this.showCursor();
 };
 
 /**
@@ -385,11 +388,6 @@ Terminal.prototype.open = function() {
 
   this.bindKeys();
   this.focus();
-
-  on(this.element, 'click', function() {
-    self.focus();
-    self.inputElement.focus();
-  });
 
   // This probably shouldn't work,
   // ... but it does. Firefox's paste
@@ -801,6 +799,25 @@ Terminal.prototype.bindMouse = function() {
 
     return cancel(ev);
   });
+
+  // if any text is selected on mouse up, enter selection mode
+  on(el, 'mouseup', function(ev) {
+    if(window.getSelection) {
+      var selectedText = window.getSelection().toString();
+      if (selectedText.length > 0) {
+        self.selectionMode = true;
+      }
+    }
+    // selection clearance only happens after mouseup event
+    window.setTimeout(function() {
+      var selectedText = window.getSelection().toString();
+      if (selectedText.length === 0) {
+        self.selectionMode = false;
+        self.focus();
+      }
+    }, 0);
+  });
+
 
   on(el, wheelEvent, function(ev) {
     if (!self.mouseEvents) return;
