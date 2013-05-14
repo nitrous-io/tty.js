@@ -2239,8 +2239,9 @@ Terminal.prototype.keyDown = function(ev) {
         // CTRL+SHIFT+C on Chrome on non-Mac systems
         // requires the app to be installed as a Chrome extension.
         } else if (!isMac && ev.shiftKey && ev.keyCode === 67) {
-          key = ''
+          key = '';
           document.execCommand('copy', false, null);
+          cancel(ev);
         } else if (ev.keyCode >= 65 && ev.keyCode <= 90) {
           key = String.fromCharCode(ev.keyCode - 64);
         } else if (ev.keyCode === 32) {
