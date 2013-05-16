@@ -313,19 +313,18 @@ Terminal.focus = null;
 
 Terminal.prototype.focus = function() {
   var self = this;
-  if (!self.selectionMode) {
-    window.setTimeout(function() { self.inputElement.focus(); }, 0);
+  self.selectionMode = false;
+  window.setTimeout(function() { self.inputElement.focus(); }, 0);
 
-    if (Terminal.focus === this) return;
-    if (Terminal.focus) {
-      Terminal.focus.cursorState = 0;
-      Terminal.focus.refresh(Terminal.focus.y, Terminal.focus.y);
-      if (Terminal.focus.sendFocus) Terminal.focus.send('\x1b[O');
-    }
-    Terminal.focus = this;
-    if (this.sendFocus) this.send('\x1b[I');
-    this.showCursor();
+  if (Terminal.focus === this) return;
+  if (Terminal.focus) {
+    Terminal.focus.cursorState = 0;
+    Terminal.focus.refresh(Terminal.focus.y, Terminal.focus.y);
+    if (Terminal.focus.sendFocus) Terminal.focus.send('\x1b[O');
   }
+  Terminal.focus = this;
+  if (this.sendFocus) this.send('\x1b[I');
+  this.showCursor();
 };
 
 /**
@@ -349,6 +348,16 @@ Terminal.prototype.bindKeys = function() {
       return Terminal.focus.keyPress(ev);
     }
   }, true);
+
+  on(document, 'keydown', function(ev) {
+    var copying = ((isMac && ev.metaKey) || (!isMac && ev.ctrlKey)) && ev.keyCode === 67;
+    if (self.selectionMode // selection mode
+        && !copying // not cmd/ctrl+c
+        && (ev.keyCode >= 48 && ev.keyCode <= 222 && [91, 92, 93, 144, 145].indexOf(ev.keyCode) === -1)) {
+      // cancel selection mode
+      self.inputElement.focus();
+    }
+  });
 };
 
 /**
@@ -767,7 +776,9 @@ Terminal.prototype.bindMouse = function() {
     sendButton(ev);
 
     // ensure focus
-    self.focus();
+    if (!self.selectionMode) {
+      self.focus();
+    }
 
     // fix for odd bug
     if (self.vt200Mouse) {
