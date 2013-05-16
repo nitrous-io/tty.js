@@ -357,6 +357,10 @@ Terminal.prototype.bindKeys = function() {
       // cancel selection mode
       self.inputElement.focus();
     }
+    if (!isMac && copying && ev.shiftKey && document.execCommand) {
+      document.execCommand('copy', true, null);
+      cancel(ev);
+    }
   });
 };
 
