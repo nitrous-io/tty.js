@@ -314,7 +314,8 @@ Terminal.focus = null;
 Terminal.prototype.focus = function() {
   var self = this;
   self.selectionMode = false;
-  window.setTimeout(function() { self.inputElement.focus(); }, 0);
+
+  self.inputElement.focus();
 
   if (Terminal.focus === this) return;
   if (Terminal.focus) {
@@ -819,7 +820,7 @@ Terminal.prototype.bindMouse = function() {
 
   // if any text is selected on mouse up, enter selection mode
   on(el, 'mouseup', function(ev) {
-    if(window.getSelection) {
+    if (window.getSelection) {
       var selectedText = window.getSelection().toString();
       if (selectedText.length > 0) {
         self.selectionMode = true;
@@ -827,14 +828,20 @@ Terminal.prototype.bindMouse = function() {
     }
     // selection clearance only happens after mouseup event
     window.setTimeout(function() {
-      var selectedText = window.getSelection().toString();
-      if (selectedText.length === 0) {
-        self.selectionMode = false;
-        self.focus();
+      if (window.getSelection) {
+        var selectedText = window.getSelection().toString();
+        if (selectedText.length === 0) {
+          self.selectionMode = false;
+        }
       }
     }, 0);
   });
 
+  on(el, 'click', function(ev) {
+    if(!self.selectionMode) {
+      self.focus();
+    }
+  });
 
   on(el, wheelEvent, function(ev) {
     if (!self.mouseEvents) return;
