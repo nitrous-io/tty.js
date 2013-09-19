@@ -481,8 +481,9 @@ Terminal.prototype.open = function() {
     this.children.push(line);
   }
 
-  this.inputElement = document.createElement('input');
+  this.inputElement = document.createElement('textarea');
   this.inputElement.className = 'terminal-input';
+  this.inputElement.rows = '1';
   this.inputElement.autocorrect = 'off';
   this.inputElement.autocapitalize = 'off';
 
