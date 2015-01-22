@@ -1732,6 +1732,11 @@ Terminal.prototype.write = function(data) {
 
           // CSI Pm m  Character Attributes (SGR).
           case 'm':
+            // fix tmux underline bug
+            // http://sourceforge.net/p/tmux/mailman/tmux-users/thread/F892202E-B27B-400E-A5BD-596A124E058F@high5.nl/
+            if (this.prefix == '>') {
+              break;
+            }
             this.charAttributes(this.params);
             break;
 
