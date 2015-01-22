@@ -2460,10 +2460,12 @@ Terminal.prototype.commitInput = function(key, ev) {
     this.inputElement.className = this.inputElement.className.replace(' visible', '');
   }
 
-  this.emit('key', key, ev);
-
   this.showCursor();
-  this.handler(key);
+
+  if(key.length > 0) {
+    this.emit('key', key, ev);
+    this.handler(key);
+  }
 };
 
 Terminal.prototype.setgLevel = function(g) {
