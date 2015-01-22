@@ -1504,15 +1504,17 @@ Terminal.prototype.write = function(data) {
 
           // ESC = Application Keypad (DECPAM).
           case '=':
-            this.log('Serial port requested application keypad.');
-            this.applicationKeypad = true;
+            // disabled - this breaks mouse scrolling
+            //this.log('Serial port requested application keypad.');
+            //this.applicationKeypad = true;
             this.state = normal;
             break;
 
           // ESC > Normal Keypad (DECPNM).
           case '>':
-            this.log('Switching back to normal keypad.');
-            this.applicationKeypad = false;
+            // disabled - this breaks mouse scrolling
+            //this.log('Switching back to normal keypad.');
+            //this.applicationKeypad = false;
             this.state = normal;
             break;
 
